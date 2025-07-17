@@ -61,8 +61,8 @@
           mode: 'readwrite'
         });
 
-        // 選択フォルダ内の全ファイル処理
-        await processAllFilesFlat(srcDirHandle, additionalText);
+        // 選択フォルダ直下の全ファイル処理（サブフォルダは無視）
+        await processTopLevelFiles(srcDirHandle, additionalText);
 
         status.textContent = '✅ 複製＆リネーム完了';
       } catch (err) {
@@ -72,7 +72,7 @@
       }
     });
 
-    async function processAllFilesFlat(dirHandle, additionalText) {
+    async function processTopLevelFiles(dirHandle, additionalText) {
       for await (const [name, handle] of dirHandle.entries()) {
         if (handle.kind === 'file') {
           const file = await handle.getFile();
@@ -88,10 +88,8 @@
           const writable = await newFileHandle.createWritable();
           await writable.write(await file.arrayBuffer());
           await writable.close();
-        } else if (handle.kind === 'directory') {
-          // サブフォルダも再帰的に処理
-          await processAllFilesFlat(handle, additionalText);
         }
+        // else if (handle.kind === 'directory') { /* サブフォルダは処理しない */ }
       }
     }
 
