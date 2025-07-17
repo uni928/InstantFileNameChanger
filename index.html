@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>フォルダ内ファイル複製＆リネーム</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 50px;
+    }
+    input[type="text"] {
+      width: 300px;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+    #status.error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>フォルダ内ファイル複製＆リネーム</h1>
+  <input type="text" id="textInput" placeholder="ファイル名に追加する文字列 (必須)">
+  <button id="selectFolderBtn">フォルダを選択</button>
+  <div id="status"></div>
+
+  <script>
+    const textInput = document.getElementById('textInput');
+    const selectFolderBtn = document.getElementById('selectFolderBtn');
+    const status = document.getElementById('status');
+
+    selectFolderBtn.addEventListener('click', async () => {
+      status.textContent = '';
+      status.classList.remove('error');
+
+      const additionalText = textInput.value.trim();
+      if (!additionalText) {
+        status.textContent = '❌ ファイル名の追加文字列は必須です';
+        status.classList.add('error');
+        return;
+      }
+
+      try {
+        // 元フォルダ選択
+        const srcDirHandle = await window.showDirectoryPicker({
+          id: 'source-folder',
+          mode: 'readwrite'
+        });
+
+        // 選択フォルダ内の全ファイル処理
+        await processAllFilesFlat(srcDirHandle, additionalText);
+
+        status.textContent = '✅ 複製＆リネーム完了';
+      } catch (err) {
+        console.error(err);
+        status.textContent = `❌ エラー: ${err.message}`;
+        status.classList.add('error');
+      }
+    });
+
+    async function processAllFilesFlat(dirHandle, additionalText) {
+      for await (const [name, handle] of dirHandle.entries()) {
+        if (handle.kind === 'file') {
+          const file = await handle.getFile();
+
+          // 📅 更新日時でファイル名作成
+          const updatedDate = file.lastModified ? new Date(file.lastModified) : new Date();
+          const datePrefix = formatDate(updatedDate);
+
+          const ext = name.substring(name.lastIndexOf('.'));
+          const newFileName = `${datePrefix}_${additionalText}${ext}`;
+
+          const newFileHandle = await dirHandle.getFileHandle(newFileName, { create: true });
+          const writable = await newFileHandle.createWritable();
+          await writable.write(await file.arrayBuffer());
+          await writable.close();
+        } else if (handle.kind === 'directory') {
+          // サブフォルダも再帰的に処理
+          await processAllFilesFlat(handle, additionalText);
+        }
+      }
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      const ss = String(date.getSeconds()).padStart(2, '0');
+      return `${y}${m}${d}_${hh}${mm}${ss}`;
+    }
+  </script>
+</body>
+</html>
